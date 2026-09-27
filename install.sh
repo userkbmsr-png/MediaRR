@@ -1,6 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
+# Resolve the directory this script actually lives in, so the files it
+# copies (docker-compose.example.yaml, .env.example, docker-compose.custom.yaml,
+# yams) are always the ones sitting next to install.sh itself - not whatever
+# happens to be in the caller's current directory (e.g. an older clone/download).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 printf "\033c"
 echo "===================================================="
 echo "                 ___           ___           ___    "
@@ -252,11 +258,12 @@ copy_configuration_files() {
     )
 
     for src in "${!files[@]}"; do
+        local source_path="$SCRIPT_DIR/$src"
         local dest="$install_directory/${files[$src]}"
         echo
         log_info "Copying $src to $dest..."
 
-        if cp "$src" "$dest"; then
+        if cp "$source_path" "$dest"; then
             log_success "$src copied successfully ✅"
         else
             log_error "Failed to copy $src to $dest. Check permissions ❌"
@@ -303,7 +310,7 @@ update_configuration_files() {
 install_cli() {
     echo
     log_info "Installing YAMS CLI..."
-    if sudo cp yams /usr/local/bin/yams && sudo chmod +x /usr/local/bin/yams; then
+    if sudo cp "$SCRIPT_DIR/yams" /usr/local/bin/yams && sudo chmod +x /usr/local/bin/yams; then
         log_success "YAMS CLI installed successfully ✅"
     else
         log_error "Failed to install YAMS CLI. Check permissions ❌"
