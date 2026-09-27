@@ -110,5 +110,3 @@ Examples:
   yams update-containers       # Update all containers
 
 Original has been forked by https://gitlab.com/rogs/yams
-Originalmedia/config/
-
