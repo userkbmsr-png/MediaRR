@@ -148,13 +148,15 @@ services:
       yams_network:
         ipv4_address: 172.60.0.19
 
-# Declared here so "docker compose up" creates yams_network on its own —
-# sonarr/radarr/bazarr/prowlarr/flaresolverr/scryer all attach to it above,
-# but nothing previously defined it at the top level in this file.
-# docker-compose.custom.yaml's "default: external: true, name: yams_network"
-# then just finds this same network by name once the yams CLI merges both files.
+# Declared here so "docker compose up" creates the network on its own -
+# sonarr/radarr/bazarr/prowlarr/flaresolverr/scryer all attach to it above.
+# "name" is required: without it Compose prefixes the project name and creates
+# "yams_yams_network", so docker-compose.custom.yaml (external: true,
+# name: yams_network) and "yams destroy" (docker network rm yams_network)
+# would not find it.
 networks:
   yams_network:
+    name: yams_network
     driver: bridge
     ipam:
       config:

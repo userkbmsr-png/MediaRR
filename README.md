@@ -11,6 +11,7 @@ Sonarr - TV show management and automation
 Radarr - Movie management and automation
 Bazarr - Automatic subtitle management
 Prowlarr - Indexer management for your \*arr apps
+Scryer - Unified media manager (Sonarr/Radarr/Bazarr alternative)
 
 Media Servers (Choose One):
 Jellyfin (Recommended) - Open source media server
@@ -37,7 +38,6 @@ Roku, Apple TV, and other streaming devices
 Transcoding for optimal playback on any device
 
 Security and Privacy
-Built-in VPN support for secure downloads
 User management and sharing controls
 SSL/TLS encryption support
 Easy Management
@@ -100,7 +100,6 @@ stop                      stops all yams services
 start                     starts yams services
 status                    checks yams services status
 destroy                   destroy yams services so you can start from scratch
-check-vpn                 checks if the VPN is working as expected
 backup                    backs up yams to the destination location
 update-containers         updates all yams containers
 

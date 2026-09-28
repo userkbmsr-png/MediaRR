@@ -5,11 +5,6 @@ set -euo pipefail
 readonly DC="docker compose -f <filename> -f <custom_file_filename>"
 readonly INSTALL_DIRECTORY="<install_directory>"
 readonly TIMEOUT_SECONDS=60
-readonly IP_ENDPOINTS=(
-    "https://ipinfo.io/ip"
-    "https://api.ipify.org"
-    "https://checkip.amazonaws.com"
-)
 
 # Color codes for better readability
 readonly RED='\033[0;31m'
@@ -43,7 +38,6 @@ show_help() {
     echo "  start             starts yams services (can specify service names)"
     echo "  status            checks yams services status"
     echo "  destroy           destroy yams services so you can start from scratch (can specify service names)"
-    echo "  check-vpn         checks if the VPN is working as expected"
     echo "  backup            backs up yams to the destination location"
     echo "  update-containers updates all yams containers"
     echo
@@ -88,49 +82,6 @@ wait_for_services() {
 
     echo
     log_error "Not all services started within ${TIMEOUT_SECONDS} seconds ($running_services/$total_services running)"
-}
-
-get_ip_with_retries() {
-    local context=$1  # "local" or "qbittorrent"
-    local cmd_prefix=""
-    [ "$context" = "qbittorrent" ] && cmd_prefix="docker exec qbittorrent"
-
-    for endpoint in "${IP_ENDPOINTS[@]}"; do
-        local ip
-        ip=$($cmd_prefix curl -s --connect-timeout 5 "$endpoint")
-
-        if [ -n "$ip" ] && [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "$ip"
-            return 0
-        fi
-    done
-    return 1
-}
-
-check_vpn() {
-    echo "Getting your IP..."
-    local your_ip
-    your_ip=$(get_ip_with_retries "local") || log_error "Failed to get your IP address from any endpoint"
-    echo "Your IP: $your_ip"
-
-    local country
-    country=$(curl -s --connect-timeout 5 "https://am.i.mullvad.net/country") || log_warning "Couldn't determine your country"
-    [ -n "$country" ] && echo "Your local IP country is $country"
-
-    echo -e "\nGetting your qBittorrent IP..."
-    local qbit_ip
-    qbit_ip=$(get_ip_with_retries "qbittorrent") || log_error "Failed to get qBittorrent IP from any endpoint"
-    echo "qBittorrent IP: $qbit_ip"
-
-    local qbit_country
-    qbit_country=$(docker exec qbittorrent curl -s --connect-timeout 5 "https://am.i.mullvad.net/country") || log_warning "Couldn't determine qBittorrent country"
-    [ -n "$qbit_country" ] && echo "qBittorrent country is $qbit_country"
-
-    if [ "$qbit_ip" == "$your_ip" ]; then
-        log_error "⚠️  WARNING: Your IPs are the same! qBittorrent is exposing your IP!"
-    else
-        log_success "✅ Success: Your IPs are different. qBittorrent is masking your IP!"
-    fi
 }
 
 backup_yams() {
@@ -258,9 +209,6 @@ main() {
             ;;
         status)
             check_yams
-            ;;
-        check-vpn)
-            check_vpn
             ;;
         destroy)
             destroy_yams "${@:2}"

@@ -195,7 +195,7 @@ running_services_location() {
     host_ip=$(hostname -I | awk '{ print $1 }')
 
     local -A services=(
-        ["qBittorrent"]="8081"
+        ["qBittorrent"]="8080"
         ["Radarr"]="7878"
         ["Sonarr"]="8989"
         ["Prowlarr"]="9696"
@@ -274,7 +274,7 @@ copy_configuration_files() {
 update_configuration_files() {
     local filename="$install_directory/docker-compose.yaml"
     local env_file="$install_directory/.env"
-    local yams_script="yams"
+    local yams_script="$SCRIPT_DIR/yams"
 
     # Update .env file
     log_info "Updating environment configuration..."
@@ -364,7 +364,9 @@ log_success "Everything installed correctly! 🎉"
 log_info "Starting YAMS services..."
 log_info "This may take a while..."
 
-if ! docker compose -f "$install_directory/docker-compose.yaml" up -d; then
+# --remove-orphans also removes containers left over from earlier installs that
+# are no longer defined in the compose file (e.g. sabnzbd, gluetun, lidarr)
+if ! docker compose -f "$install_directory/docker-compose.yaml" up -d --remove-orphans; then
     log_error "Failed to start YAMS services"
 fi
 

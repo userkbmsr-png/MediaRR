@@ -29,6 +29,12 @@
 #!/bin/bash
 set -euo pipefail
 
+# Resolve the directory this script actually lives in, so the files it
+# copies (docker-compose.example.yaml, .env.example, docker-compose.custom.yaml,
+# yams) are always the ones sitting next to install.sh itself - not whatever
+# happens to be in the caller's current directory (e.g. an older clone/download).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 printf "\033c"
 echo "===================================================="
 echo "                 ___           ___           ___    "
@@ -63,7 +69,6 @@ readonly DEFAULT_INSTALL_DIR="/opt/yams"
 readonly DEFAULT_MEDIA_DIR="/srv/media"
 readonly SUPPORTED_MEDIA_SERVICES=("jellyfin" "emby" "plex")
 readonly DEFAULT_MEDIA_SERVICE="jellyfin"
-readonly DEFAULT_VPN_SERVICE="protonvpn"
 readonly MEDIA_SUBDIRS=("tvshows" "movies" "music" "books" "downloads/usenet/complete" "downloads/usenet/incomplete" "downloads/torrents" "blackhole")
 
 # Color codes
@@ -253,152 +258,17 @@ configure_media_service() {
     export media_service media_service_port
 }
 
-configure_vpn() {
-    echo
-    echo
-    echo
-    log_info "Time to set up the VPN."
-    log_info "Supported VPN providers: https://yams.media/advanced/vpn"
-
-    read -p "Configure VPN? (Y/n) [Default = y]: " setup_vpn
-    setup_vpn=${setup_vpn:-"y"}
-
-    is_protonvpn_free_tier="n"
-    enable_port_forwarding="n"
-
-    if [ "${setup_vpn,,}" != "y" ]; then
-        export setup_vpn="n"
-        export enable_port_forwarding="n"
-        export is_protonvpn_free_tier="n"
-        return 0
-    fi
-
-    read -p "VPN service? (with spaces) [$DEFAULT_VPN_SERVICE]: " vpn_service
-    vpn_service=${vpn_service:-$DEFAULT_VPN_SERVICE}
-
-# Clear screen and show dramatic warning
-    printf "\033c"
-
-    cat << "EOF"
-
-
-██╗    ██╗ █████╗ ██████╗ ███╗   ██╗██╗███╗   ██╗ ██████╗
-██║    ██║██╔══██╗██╔══██╗████╗  ██║██║████╗  ██║██╔════╝
-██║ █╗ ██║███████║██████╔╝██╔██╗ ██║██║██╔██╗ ██║██║  ███╗
-██║███╗██║██╔══██║██╔══██╗██║╚██╗██║██║██║╚██╗██║██║   ██║
-╚███╔███╔╝██║  ██║██║  ██║██║ ╚████║██║██║ ╚████║╚██████╔╝
- ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═══╝ ╚═════╝
-
-
-EOF
-    log_warning "READ THIS EXTREMELY CAREFULLY"
-    log_warning "YOU MUST READ YOUR VPN DOCUMENTATION!"
-    echo
-    log_info "Most VPN setup failures happen because users don't read the documentation"
-    log_info "for their specific VPN provider. Each VPN has different requirements!"
-    echo
-    log_warning "YOUR VPN DOCUMENTATION IS HERE:"
-    echo "https://github.com/qdm12/gluetun-wiki/blob/main/setup/providers/${vpn_service// /-}.md"
-    echo
-
-    if [ "$vpn_service" = "protonvpn" ]; then
-       log_warning "DO NOT USE YOUR PROTON ACCOUNT USERNAME AND PASSWORD. REFER TO THE DOCUMENTATION ABOVE TO OBTAIN THE CORRECT VPN USERNAME AND PASSWORD."
-       echo
-
-       read -p "Are you using a free ProtonVPN account? (y/N) [Default = n]: " is_protonvpn_free_tier_input
-       is_protonvpn_free_tier_input=${is_protonvpn_free_tier_input:-"n"}
-       is_protonvpn_free_tier=${is_protonvpn_free_tier_input,,}
-
-       if [ "$is_protonvpn_free_tier" = "y" ]; then
-           log_warning "⚠️ ProtonVPN Free Tier Users: If you plan to use a free ProtonVPN account, please be aware that port forwarding is not supported. See our ProtonVPN Free Tier guide here: https://yams.media/advanced/vpn/#protonvpn-free-tier for more details."
-           echo
-       fi
-    fi
-
-    export is_protonvpn_free_tier
-
-    log_info "The next steps WILL FAIL if you don't follow the documentation correctly."
-    read -p "Press ENTER after you've READ the VPN documentation to continue..." -r
-
-    echo
-    if [ "$vpn_service" = "mullvad" ]; then
-       log_warning "Mullvad is removing OpenVPN support on January 15, 2026."
-       log_warning "If you plan to use Mullvad, you MUST migrate to WireGuard after installation."
-       log_warning "Read more: https://mullvad.net/en/blog/removing-openvpn-15th-january-2026"
-       log_warning "WireGuard setup instructions: https://yams.media/advanced/wireguard/"
-       echo
-    fi
-
-    read -p "VPN username (without spaces): " vpn_user
-    [ -z "$vpn_user" ] && log_error "VPN username cannot be empty"
-
-    # Port forwarding configuration
-    if [ "$is_protonvpn_free_tier" = "y" ]; then
-        log_warning "Port forwarding is automatically disabled for ProtonVPN Free Tier accounts"
-        enable_port_forwarding="n"
-    else
-        echo
-        log_info "Port forwarding allows for better connectivity in certain applications."
-        log_info "However, not all VPN providers support this feature."
-        log_info "Please check your VPN provider's documentation to see if they support port forwarding."
-        read -p "Enable port forwarding? (y/N) [Default = n]: " user_enable_port_forwarding
-        enable_port_forwarding=${user_enable_port_forwarding:-"n"}
-    fi
-
-    # Handle special cases for VPN providers
-    if [ "$vpn_service" = "protonvpn" ] && [ "${enable_port_forwarding,,}" = "y" ] && [ "$is_protonvpn_free_tier" != "y" ] && [[ ! "$vpn_user" =~ \+pmp$ ]]; then
-        vpn_user="${vpn_user}+pmp"
-        log_info "Added +pmp suffix to username for ProtonVPN port forwarding"
-    fi
-
-    # Handle password input based on VPN service
-    if [ "$vpn_service" = "mullvad" ]; then
-        vpn_password="$vpn_user"
-        log_info "Using Mullvad username as password"
-    else
-        # Use hidden input for password
-        unset vpn_password
-        charcount=0
-        prompt="VPN password: "
-        while IFS= read -p "$prompt" -r -s -n 1 char; do
-            if [[ $char == $'\0' ]]; then
-                break
-            fi
-            if [[ $char == $'\177' ]]; then
-                if [ $charcount -gt 0 ]; then
-                    charcount=$((charcount-1))
-                    prompt=$'\b \b'
-                    vpn_password="${vpn_password%?}"
-                else
-                    prompt=''
-                fi
-            else
-                charcount=$((charcount+1))
-                prompt='*'
-                vpn_password+="$char"
-            fi
-        done
-        echo
-
-        [ -z "$vpn_password" ] && log_error "VPN password cannot be empty"
-    fi
-
-    # Export for use in other functions
-    export vpn_service vpn_user vpn_password setup_vpn enable_port_forwarding
-}
-
 running_services_location() {
     local host_ip
     host_ip=$(hostname -I | awk '{ print $1 }')
 
     local -A services=(
-        ["qBittorrent"]="8081"
-        ["SABnzbd"]="8080"
+        ["qBittorrent"]="8080"
         ["Radarr"]="7878"
         ["Sonarr"]="8989"
-        ["Lidarr"]="8686"
         ["Prowlarr"]="9696"
         ["Bazarr"]="6767"
+        ["Scryer"]="8585"
         ["$media_service"]="$media_service_port"
         ["Portainer"]="9000"
     )
@@ -463,11 +333,12 @@ copy_configuration_files() {
     )
 
     for src in "${!files[@]}"; do
+        local source_path="$SCRIPT_DIR/$src"
         local dest="$install_directory/${files[$src]}"
         echo
         log_info "Copying $src to $dest..."
 
-        if cp "$src" "$dest"; then
+        if cp "$source_path" "$dest"; then
             log_success "$src copied successfully ✅"
         else
             log_error "Failed to copy $src to $dest. Check permissions ❌"
@@ -478,7 +349,7 @@ copy_configuration_files() {
 update_configuration_files() {
     local filename="$install_directory/docker-compose.yaml"
     local env_file="$install_directory/.env"
-    local yams_script="yams"
+    local yams_script="$SCRIPT_DIR/yams"
 
     # Update .env file
     log_info "Updating environment configuration..."
@@ -486,21 +357,8 @@ update_configuration_files() {
            -e "s|<your_PGID>|$pgid|g" \
            -e "s|<media_directory>|$media_directory|g" \
            -e "s|<media_service>|$media_service|g" \
-           -e "s|<install_directory>|$install_directory|g" \
-           -e "s|vpn_enabled|$setup_vpn|g" "$env_file" || \
+           -e "s|<install_directory>|$install_directory|g" "$env_file" || \
         log_error "Failed to update .env file"
-
-    # Update VPN configuration in .env file
-if [ "${setup_vpn,,}" == "y" ]; then
-sed -i -e "s|^VPN_ENABLED=.*|VPN_ENABLED=y|" \
-        -e "s|^VPN_SERVICE=.*|VPN_SERVICE=$vpn_service|" \
-        -e "s|^VPN_USER=.*|VPN_USER=$vpn_user|" \
-        -e "s|^VPN_PASSWORD=.*|VPN_PASSWORD=$vpn_password|" "$env_file" || \
-        log_error "Failed to update VPN configuration in .env"
-else
-sed -i -e "s|^VPN_ENABLED=.*|VPN_ENABLED=n|" "$env_file" || \
-        log_error "Failed to update VPN configuration in .env"
-fi
 
     # Update docker-compose.yaml
     log_info "Updating docker-compose configuration..."
@@ -516,31 +374,6 @@ fi
             log_error "Failed to configure Plex settings"
     fi
 
-    # Configure VPN settings if enabled
-    if [ "${setup_vpn,,}" == "y" ]; then
-        log_info "Configuring VPN settings..."
-
-        local port_forward_settings="off"
-        if [ "${enable_port_forwarding,,}" = "y" ] && [ "${is_protonvpn_free_tier,,}" != "y" ]; then
-            port_forward_settings="on"
-        fi
-
-        sed -i -e "s|vpn_service|$vpn_service|g" \
-               -e "s|vpn_user|$vpn_user|g" \
-               -e "s|vpn_password|$vpn_password|g" \
-               -e "/PORT_FORWARD_ONLY=/s/=on/=$port_forward_settings/" \
-               -e "/VPN_PORT_FORWARDING=/s/=on/=$port_forward_settings/" \
-               -e "/VPN_PORT_FORWARDING=/ { s/^ *VPN_PORT_FORWARDING=.*/$( [ "${is_protonvpn_free_tier,,}" = "y" ] && echo "#" )VPN_PORT_FORWARDING=$port_forward_settings # ProtonVPN Free Tier does not support port forwarding/ }" \
-               -e 's|#network_mode: "service:gluetun"|network_mode: "service:gluetun"|g' \
-               -e 's|ports: # qbittorrent|#ports: # qbittorrent|g' \
-               -e 's|ports: # sabnzbd|#ports: # sabnzbd|g' \
-               -e 's|- 8081:8081 # qbittorrent|#- 8081:8081 # qbittorrent|g' \
-               -e 's|- 8080:8080 # sabnzbd|#- 8080:8080 # sabnzbd|g' \
-               -e 's|#- 8080:8080/tcp # gluetun|- 8080:8080/tcp # gluetun|g' \
-               -e 's|#- 8081:8081/tcp # gluetun|- 8081:8081/tcp # gluetun|g' "$filename" || \
-            log_error "Failed to configure VPN settings"
-    fi
-
     # Update YAMS CLI script
     log_info "Updating YAMS CLI configuration..."
     sed -i -e "s|<filename>|$filename|g" \
@@ -552,7 +385,7 @@ fi
 install_cli() {
     echo
     log_info "Installing YAMS CLI..."
-    if sudo cp yams /usr/local/bin/yams && sudo chmod +x /usr/local/bin/yams; then
+    if sudo cp "$SCRIPT_DIR/yams" /usr/local/bin/yams && sudo chmod +x /usr/local/bin/yams; then
         log_success "YAMS CLI installed successfully ✅"
     else
         log_error "Failed to install YAMS CLI. Check permissions ❌"
@@ -612,7 +445,6 @@ get_installation_paths
 
 # Configure services
 configure_media_service
-configure_vpn
 
 log_info "Configuring the docker-compose file for user \"$username\" in \"$install_directory\"..."
 
@@ -626,7 +458,9 @@ log_success "Everything installed correctly! 🎉"
 log_info "Starting YAMS services..."
 log_info "This may take a while..."
 
-if ! docker compose -f "$install_directory/docker-compose.yaml" up -d; then
+# --remove-orphans also removes containers left over from earlier installs that
+# are no longer defined in the compose file (e.g. sabnzbd, gluetun, lidarr)
+if ! docker compose -f "$install_directory/docker-compose.yaml" up -d --remove-orphans; then
     log_error "Failed to start YAMS services"
 fi
 
@@ -635,7 +469,6 @@ echo
 log_info "We need your sudo password to install the YAMS CLI and configure permissions..."
 install_cli
 set_permissions
-
 #+end_src
 
 * Display Closing Message
