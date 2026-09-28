@@ -1,10 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# Resolve the directory this script actually lives in, so the files it
-# copies (docker-compose.example.yaml, .env.example, docker-compose.custom.yaml,
-# yams) are always the ones sitting next to install.sh itself - not whatever
-# happens to be in the caller's current directory (e.g. an older clone/download).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 printf "\033c"
@@ -201,8 +197,7 @@ running_services_location() {
         ["Prowlarr"]="9696"
         ["Bazarr"]="6767"
         ["Scryer"]="8585"
-        ["$media_service"]="$media_service_port"
-        ["Portainer"]="9000"
+        ["$media_service"]="$media_service_port"    
     )
 
     echo -e "Service URLs:"
@@ -238,7 +233,7 @@ get_installation_paths() {
     media_directory=${media_directory:-$DEFAULT_MEDIA_DIR}
 
     read -p "Are you sure your media directory is \"$media_directory\"? (y/N) [Default = n]: " media_directory_correct
-    media_directory_correct=${media_directory_correct:-"n"}
+    media_directory_correct=${media_directory_correct:-"y"}
 
     if [ "${media_directory_correct,,}" != "y" ]; then
         log_error "Media directory is not correct. Please fix it and run the script again ❌"
