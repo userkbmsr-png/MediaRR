@@ -1,111 +1,105 @@
-Description
+# MediaRR
 
-Description
-YAMS installs and configures a complete media server stack using Docker containers:
+A one-command installer that sets up a complete, self-hosted media automation stack using Docker.
 
-Download Management:
-qBittorrent - Torrent client
+## 
 
-Media Management:
-Sonarr - TV show management and automation
-Radarr - Movie management and automation
-Bazarr - Automatic subtitle management
-Prowlarr - Indexer management for your \*arr apps
-Scryer - Unified media manager (Sonarr/Radarr/Bazarr alternative)
+## What's included
 
-Media Servers (Choose One):
-Jellyfin (Recommended) - Open source media server
-Emby - Media server with premium features
-Plex - Popular media server with advanced features
 
-Management & Monitoring:
-Portainer - Container management UI
-Watchtower - Automatic container updates
 
-Features
-YAMS provides a comprehensive media server solution with:
-Smart Media Management: Automatically organizes your media library
-Downloads new episodes and movies as they become available
-Categorizes content into appropriate folders
-Manages music and book collections
-Fetches subtitles in your preferred languages
-Flexible Media Access: Access your content anywhere
+**Media player**:
 
-Web interface for browser-based streaming
-Apps for mobile devices (iOS/Android)
-Smart TV apps
-Roku, Apple TV, and other streaming devices
-Transcoding for optimal playback on any device
+* [Stremio](https://www.stremio.com/) — run directly on connected TV or Monitor, or on port 8000 (autostart on screen)
+* [Nuvio](nuvio.tv) — free, open-source media app, can be open by selector Mod+Shift+r
 
-Security and Privacy
-User management and sharing controls
-SSL/TLS encryption support
-Easy Management
 
-Simple CLI interface with `yams` command
-Web-based management through Portainer
-Automatic container updates via Watchtower
-Backup and restore functionality
 
-Required:
-Docker
-Docker Compose
-The installation script can automatically install these on Debian/Ubuntu systems.
+**Media server**:
 
-Before Installation
-Prepare the following:
-Installation Location
-Default: /opt/yams
-Ensure your user has write permissions
-Media Directory
+* [Jellyfin](https://jellyfin.org/) — fully open source
 
-Default: /srv/media
-Will contain subdirectories:
 
-/srv/media/tvshows: TV series
-/srv/media/movies: Movies
-/srv/media/music: Music files
-/srv/media/books: Books and audiobooks
-/srv/media/downloads: Temporary download location
-/srv/media/blackhole: Watch folder for torrents
-Non-root User
 
-Regular system user to own and manage files
-Must have sudo privileges for initial setup
 
-Installation
-Quick installation:
-///
-git clone --depth=1 https://github.com/userkbmsr-png/yasm2 /tmp/yams
-cd /tmp/yams
-bash install.sh
-///
 
-Follow the interactive prompts to configure your installation.
+**Media management (\*arr stack):**
 
-Tested on:
+|Service|Purpose|Port|
+|-|-|-|
+|[Sonarr](https://sonarr.tv/)|TV show management \& automation|8989|
+|[Radarr](https://radarr.video/)|Movie management \& automation|7878|
+|[Bazarr](https://www.bazarr.media/)|Automatic subtitle downloads|6767|
+|[Prowlarr](https://prowlarr.com/)|Indexer management for Sonarr/Radarr|9696|
+|[Scryer](https://www.scryer.media/)|Unified alternative to Sonarr+Radarr+Bazarr|8585|
 
-Debian 11/12
-Ubuntu 22.04
+**Download client:**
 
-Usage
-YAMS provides a simple CLI interface:
-yams - Yet Another Media Server
+* [qBittorrent](https://www.qbittorrent.org/) — torrent client, port 8080
 
-Usage: yams [command] [options]
-Commands:
---help                    displays this help message
-restart                   restarts yams services
-stop                      stops all yams services
-start                     starts yams services
-status                    checks yams services status
-destroy                   destroy yams services so you can start from scratch
-backup                    backs up yams to the destination location
-update-containers         updates all yams containers
+**Behind the scenes:**
 
-Examples:
-  yams start                   # Start all YAMS services
-  yams backup /path/to/backup  # Backup YAMS to specified directory
-  yams update-containers       # Update all containers
+* [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr) — helps Prowlarr's indexers get past Cloudflare challenges. No web UI you need to visit; it just needs to be running.
 
-Original has been forked by https://gitlab.com/rogs/yams
+All services share one Docker network (`yams\\\_network`) so they can talk to each other directly.
+
+## Requirements
+
+* A Debian/Ubuntu-based Linux system (tested on Debian 11/12/13, Ubuntu 22.04)
+* A regular (non-root) user with sudo access — **the installer refuses to run as root**
+* Docker \& Docker Compose — the installer offers to install these for you if missing
+
+## Installation
+
+```
+curl -fsSL https://raw.githubusercontent.com/userkbmsr-png/yasm2/install-mediarr.sh | sudo bash
+```
+
+## Directory layout
+
+```
+<install\\\_directory>/            # default: /opt/yams
+├── docker-compose.yaml
+├── docker-compose.custom.yaml  # add your own services here
+├── .env
+└── config/                     # one subfolder per service
+
+<media\\\_directory>/              # default: /srv/media
+├── tvshows/
+├── movies/
+├── music/
+├── books/
+├── blackhole/                  # torrent watch folder
+└── downloads/
+    ├── torrents/
+   
+```
+
+## Managing YAMS
+
+Everything goes through the `yams` command installed during setup:
+
+```bash
+yams --help                   # show all commands
+yams status                   # check what's running
+yams start                    # start every service
+yams stop                     # stop every service
+yams restart                  # restart every service
+yams start jellyfin           # target a single service by name
+yams backup /path/to/backup   # stop, archive the install directory, restart
+yams update-containers        # pull latest images and restart
+yams destroy                  # tear everything down (asks for confirmation)
+```
+
+Service URLs are printed at the end of installation and saved to `\\\~/yams\\\_services.txt`.
+
+## Adding your own services
+
+`docker-compose.custom.yaml` is loaded alongside the main compose file and already joins the shared `yams\\\_network` — add any extra container there instead of editing the generated `docker-compose.yaml` directly.
+
+## Credits
+
+Forked from and originally built on [rogsme/yams](https://github.com/rogsme/yams).
+
+Vibecoded with Claude Sonnet 5 — directed and tested by the repo owner.
+
