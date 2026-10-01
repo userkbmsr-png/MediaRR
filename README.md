@@ -1,6 +1,6 @@
 # MediaRR
 
-A one-command installer that sets up a complete, self-hosted media automation stack using Docker.
+A one-command installer that sets up a complete, self-hosted media automation stack using Docker and using kiosk mode (Chrome)
 
 ## 
 
@@ -18,9 +18,6 @@ A one-command installer that sets up a complete, self-hosted media automation st
 **Media server**:
 
 * [Jellyfin](https://jellyfin.org/) — fully open source
-
-
-
 
 
 **Media management (\*arr stack):**
@@ -45,7 +42,7 @@ All services share one Docker network (`yams\\\_network`) so they can talk to ea
 
 ## Requirements
 
-* A Debian/Ubuntu-based Linux system (tested on Debian 12/13, Ubuntu 22.04)
+* A Debian/Ubuntu-based Linux system (tested on Debian 12/13, Ubuntu 22.04/26.04.1 LTS)
 * A regular (non-root) user with sudo access — **the installer refuses to run as root**
 * Docker \& Docker Compose — the installer offers to install these for you if missing
 
