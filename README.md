@@ -45,30 +45,29 @@ All services share one Docker network (`yams\\\_network`) so they can talk to ea
 
 ## Requirements
 
-* A Debian/Ubuntu-based Linux system (tested on Debian 11/12/13, Ubuntu 22.04)
+* A Debian/Ubuntu-based Linux system (tested on Debian 12/13, Ubuntu 22.04)
 * A regular (non-root) user with sudo access — **the installer refuses to run as root**
 * Docker \& Docker Compose — the installer offers to install these for you if missing
 
 ## Installation
 
 ```
-curl -fsSL https://raw.githubusercontent.com/userkbmsr-png/yasm2/install-mediarr.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/userkbmsr-png/MediaRR/install-mediarr.sh | sudo bash
 ```
 
 ## Directory layout
 
 ```
-<install\\\_directory>/            # default: /opt/yams
+<install\\\_directory>/         # default: /opt/yams
 ├── docker-compose.yaml
 ├── docker-compose.custom.yaml  # add your own services here
 ├── .env
 └── config/                     # one subfolder per service
 
-<media\\\_directory>/              # default: /srv/media
+<media\\\_directory>/           # default: /srv/media
 ├── tvshows/
 ├── movies/
 ├── music/
-├── books/
 ├── blackhole/                  # torrent watch folder
 └── downloads/
     ├── torrents/
