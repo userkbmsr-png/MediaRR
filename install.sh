@@ -16,21 +16,19 @@ KIOSK_HOME="/home/$KIOSK_USER"
 STREMIO_PORT=8000
 JELLYFIN_PORT=8096
 SCRYER_PORT=8585
-YAMS_INSTALL_DIR=/opt/yams
+YAMS_INSTALL_DIR=/opt/mediarr
 YAMS_MEDIA_DIR=/srv/media
 
-echo -e "\e[1;35m"
-echo "███╗   ███╗███████╗██████╗ ██╗ █████╗ "
-echo "████╗ ████║██╔════╝██╔══██╗██║██╔══██╗"
-echo "██╔████╔██║█████╗  ██║  ██║██║███████║"
-echo "██║╚██╔╝██║██╔══╝  ██║  ██║██║██╔══██║"
-echo "██║ ╚═╝ ██║███████╗██████╔╝██║██║  ██║"
-echo "╚═╝     ╚═╝╚══════╝╚═════╝ ╚═╝╚═╝  ╚═╝"
-echo -e "\e[1;33m"
-echo "                   R R"
-echo -e "\e[0m"
+echo -e "\e[1;36m"
+echo "███╗ ███╗███████╗██████╗ ██╗ █████╗ ██████╗ ██████╗ "
+echo "████╗ ████║██╔════╝██╔══██╗██║██╔══██╗██╔══██╗██╔══██╗"
+echo "██╔████╔██║█████╗ ██║ ██║██║███████║██████╔╝██████╔╝"
+echo "██║╚██╔╝██║██╔══╝ ██║ ██║██║██╔══██║██╔══██╗██╔══██╗"
+echo "██║ ╚═╝ ██║███████╗██████╔╝██║██║ ██║██║ ██║██║ ██║"
+echo "╚═╝ ╚═╝╚══════╝╚═════╝ ╚═╝╚═╝ ╚═╝╚═╝ ╚═╝╚═╝ ╚═╝"
+echo -e "\e[1;33m mediaArr\e[0m"
 
-echo -e "\e[0;32m[INFO]\e[0m Preparing Stremio/Nuvio installation..."
+echo -e "\e[0;32m[INFO]\e[0m Preparing installation..."
 
 PRIMARY_IP=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+' | head -n1)
 if [ -z "$PRIMARY_IP" ]; then
@@ -113,7 +111,7 @@ else
     rm -f "$NUVIO_DEB"
 fi
 
-echo ">>> [6/10] Stack YAMS (*arr: Sonarr/Radarr/Bazarr/Prowlarr/qBittorrent + Jellyfin)..."
+echo ">>> [6/10] Stack mediArr (*arr: Sonarr/Radarr/Bazarr/Prowlarr/qBittorrent + Jellyfin)..."
 
 mkdir -p "$YAMS_INSTALL_DIR" "$YAMS_MEDIA_DIR"
 chown "$KIOSK_USER":"$KIOSK_USER" "$YAMS_INSTALL_DIR" "$YAMS_MEDIA_DIR"
@@ -134,13 +132,13 @@ git clone --depth=1 https://github.com/userkbmsr-png/MediaRR /tmp/yams
 cd /tmp/yams
 
 if sudo -u "$KIOSK_USER" -H bash -c "yes '' | bash /tmp/yams/install.sh"; then
-    echo "YAMS instalat."
+    echo "mediArr instalat."
+    cd /
+    rm -rf /tmp/yams
 else
-    echo "!!! Instalarea YAMS a eșuat - restul kiosk-ului (Stremio/Nuvio) nu e"
-    echo "!!! afectat. Poți relua manual: cd /tmp/yams && bash install.sh"
+    echo "!!! Instalarea mediArr a eșuat - restul kiosk-ului (Stremio/Nuvio) nu e"
+    echo "!!! afectat. Poți relua manual: bash install.sh"
 fi
-cd /
-rm -rf /tmp/yams
 
 echo ">>> [7/10] Permisiune poweroff fără parolă pentru $KIOSK_USER..."
 cat > /etc/sudoers.d/kiosk-poweroff <<EOF
@@ -269,6 +267,6 @@ echo "!!! nu necesită nicio modificare pe acest PC. Dacă IP-ul chiar se schimb
 echo "!!! rulează din nou acest script ca să se actualizeze în selector."
 if [ -f /usr/local/bin/yams ]; then
     echo
-    echo "Servicii MediaRR (detalii complete în ~$KIOSK_USER/yams_services.txt):"
-    cat "$KIOSK_HOME/yams_services.txt" 2>/dev/null || true
+    echo "Servicii MediaRR (detalii complete în ~$KIOSK_USER/mediArr_services.txt):"
+    cat "$KIOSK_HOME/mediArr_services.txt" 2>/dev/null || true
 fi
