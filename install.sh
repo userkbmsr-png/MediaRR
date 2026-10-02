@@ -130,7 +130,7 @@ if ! visudo -c -f /etc/sudoers.d/kiosk-yams > /dev/null 2>&1; then
 fi
 
 rm -rf /tmp/yams
-git clone --depth=1 https://github.com/userkbmsr-png/yasm2 /tmp/yams
+git clone --depth=1 https://github.com/userkbmsr-png/MediaRR /tmp/yams
 cd /tmp/yams
 
 if sudo -u "$KIOSK_USER" -H bash -c "yes '' | bash /tmp/yams/install.sh"; then
