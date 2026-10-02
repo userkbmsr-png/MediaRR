@@ -2,7 +2,7 @@
 #
 # PC Intel x64 - Debian 13 (trixie)
 # Instalează: Stremio (Docker, pornește automat la boot) + Nuvio + stack-ul
-# Rulare: sudo bash install-mediArr.sh
+# Rulare: sudo bash install.sh
 
 set -euo pipefail
 
