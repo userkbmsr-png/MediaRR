@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 
 # Constants
-readonly DEFAULT_INSTALL_DIR="/opt/yams"
+readonly DEFAULT_INSTALL_DIR="/opt/mediarr"
 readonly DEFAULT_MEDIA_DIR="/srv/media"
 readonly SUPPORTED_MEDIA_SERVICES=("jellyfin" "emby" "plex")
 readonly DEFAULT_MEDIA_SERVICE="jellyfin"
