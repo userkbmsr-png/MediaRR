@@ -303,9 +303,9 @@ fi
 EOF
 fi
 
-cat > "$KIOSK_HOME"/.xbindkeysrc <<'EOF'
-"pkill chromium; pkill Nuvio"
-    b:3
+cat > "$KIOSK_HOME"/.xbindkeysrc <<EOF
+"$KIOSK_HOME/app-control.sh toggle"
+    m:0x0 + b:3
 EOF
 
 cat > "$KIOSK_HOME"/.xinitrc <<'EOF'
@@ -330,86 +330,103 @@ EOF
 
 echo ">>> [10/10] Stremio auto-start + selector (rofi) + config i3..."
 
-cat > "$KIOSK_HOME"/start-kiosk.sh <<EOF
+cat > "$KIOSK_HOME"/app-control.sh <<HEADER_EOF
 #!/bin/bash
-# Pornește Stremio direct. Când se închide (Mod+Shift+r), predă controlul
-# selectorului cu toate opțiunile.
-for i in \$(seq 1 30); do
-    curl -s -o /dev/null "http://localhost:${STREMIO_PORT}" && break
-    sleep 1
-done
-
-chromium \\
-    --kiosk \\
-    --noerrdialogs \\
-    --disable-infobars \\
-    --no-first-run \\
-    --disable-session-crashed-bubble \\
-    --check-for-update-interval=31536000 \\
-    "http://localhost:${STREMIO_PORT}"
-
-exec "\$HOME"/picker.sh
-EOF
-chmod +x "$KIOSK_HOME"/start-kiosk.sh
-
-cat > "$KIOSK_HOME"/picker.sh <<EOF
-#!/bin/bash
-# Selector Stremio / Nuvio / Jellyfin / Scryer / Poweroff - reapare de
-# fiecare dată când aplicația aleasă se închide.
+STREMIO_PORT=${STREMIO_PORT}
 JELLYFIN_PORT=${JELLYFIN_PORT}
 SCRYER_PORT=${SCRYER_PORT}
 HOST_IP=${PRIMARY_IP}
+HEADER_EOF
+
+cat >> "$KIOSK_HOME"/app-control.sh <<'BODY_EOF'
 CHROMIUM_FLAGS="--kiosk --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --check-for-update-interval=31536000"
 
-while true; do
-    CHOICE=\$(printf 'Stremio\nNuvio\nJellyfin\nScryer\nPoweroff\n' | rofi -dmenu -i -p "Alege aplicația" -theme-str 'window {width: 25%;} listview {lines: 5;}')
+# Omoară orice e deschis acum (selector inclus) - singurul loc de unde se
+# face asta, ca să nu mai existe curse între mai multe comenzi independente
+# care porneau/opreau lucruri fără să știe una de alta.
+kill_current() {
+    pkill rofi 2>/dev/null
+    pkill chromium 2>/dev/null
+    pkill Nuvio 2>/dev/null
+    sleep 0.3
+}
 
-    case "\$CHOICE" in
-        Stremio)  "\$HOME"/start-kiosk.sh ;;
-        Nuvio)    /opt/nuvio/bin/Nuvio ;;
-        Jellyfin) chromium \$CHROMIUM_FLAGS "http://\$HOST_IP:\$JELLYFIN_PORT" ;;
-        Scryer)   chromium \$CHROMIUM_FLAGS "http://\$HOST_IP:\$SCRYER_PORT" ;;
+launch_stremio() {
+    kill_current
+    (
+        for i in $(seq 1 30); do
+            curl -s -o /dev/null "http://localhost:$STREMIO_PORT" && break
+            sleep 1
+        done
+        chromium $CHROMIUM_FLAGS "http://localhost:$STREMIO_PORT"
+    ) &
+}
+
+launch_nuvio() {
+    kill_current
+    /opt/nuvio/bin/Nuvio &
+}
+
+launch_jellyfin() {
+    kill_current
+    chromium $CHROMIUM_FLAGS "http://$HOST_IP:$JELLYFIN_PORT" &
+}
+
+launch_scryer() {
+    kill_current
+    chromium $CHROMIUM_FLAGS "http://$HOST_IP:$SCRYER_PORT" &
+}
+
+# Nu omoară nimic înainte să afișeze rofi - rofi apare DEASUPRA aplicației
+# curente, fără s-o oprească. Doar dacă alegi ceva, acel ceva (prin
+# launch_*) oprește ce rula înainte. Escape/clic-în-afară -> rofi dispare,
+# aplicația de dinainte rămâne exact cum era.
+show_selector() {
+    CHOICE=$(printf 'Stremio\nNuvio\nJellyfin\nScryer\nPoweroff\n' | rofi -dmenu -i -p "Alege aplicația" -theme-str 'window {width: 25%;} listview {lines: 5;}')
+    case "$CHOICE" in
+        Stremio)  launch_stremio ;;
+        Nuvio)    launch_nuvio ;;
+        Jellyfin) launch_jellyfin ;;
+        Scryer)   launch_scryer ;;
         Poweroff) sudo /usr/bin/systemctl poweroff ;;
-        *)        sleep 1 ;;
     esac
-done
-EOF
-chmod +x "$KIOSK_HOME"/picker.sh
+}
 
-cat > "$KIOSK_HOME"/launch-jellyfin.sh <<EOF
-#!/bin/bash
-pkill chromium 2>/dev/null
-pkill Nuvio 2>/dev/null
-sleep 0.5
-exec chromium \\
-    --kiosk \\
-    --noerrdialogs \\
-    --disable-infobars \\
-    --no-first-run \\
-    --disable-session-crashed-bubble \\
-    --check-for-update-interval=31536000 \\
-    "http://${PRIMARY_IP}:${JELLYFIN_PORT}"
-EOF
-chmod +x "$KIOSK_HOME"/launch-jellyfin.sh
+case "$1" in
+    toggle)
+        if pgrep -x rofi > /dev/null; then
+            pkill rofi
+        else
+            show_selector
+        fi
+        ;;
+    hide)     pkill rofi 2>/dev/null ;;
+    stremio)  launch_stremio ;;
+    nuvio)    launch_nuvio ;;
+    jellyfin) launch_jellyfin ;;
+    scryer)   launch_scryer ;;
+    *)        echo "Folosire: $0 {toggle|hide|stremio|nuvio|jellyfin|scryer}" ;;
+esac
+BODY_EOF
+chmod +x "$KIOSK_HOME"/app-control.sh
 
 mkdir -p "$KIOSK_HOME"/.config/i3
 cat > "$KIOSK_HOME"/.config/i3/config <<'EOF'
 set $mod Mod4
 
-exec --no-startup-id ~/start-kiosk.sh
+exec --no-startup-id ~/app-control.sh stremio
 
-bindsym $mod+Shift+r exec --no-startup-id "pkill chromium; pkill Nuvio"
 bindsym $mod+Shift+e exit
 
-# taste rapide fără modificator, utile dacă e nevoie de tastatură la un
-# moment dat (uz principal rămâne clic dreapta, legat prin xbindkeys) -
-# ATENȚIE: cât timp i3 rulează, literele r/s/n/j sunt "rezervate" global și
-# nu mai ajung la Stremio/Jellyfin dacă încerci să le tastezi într-un câmp
-# de căutare din interiorul aplicațiilor
-bindsym r exec --no-startup-id "pkill chromium; pkill Nuvio"
-bindsym s exec --no-startup-id "pkill chromium; pkill Nuvio; sleep 0.5; ~/start-kiosk.sh"
-bindsym n exec --no-startup-id "pkill chromium; pkill Nuvio; sleep 0.5; /opt/nuvio/bin/Nuvio"
-bindsym j exec --no-startup-id "~/launch-jellyfin.sh"
+# F1 = arată/ascunde selectorul (același efect ca și clic dreapta)
+# F2-F5 = lansează direct aplicația respectivă
+# F6 = ascunde doar selectorul, pentru orice eventualitate
+bindsym F1 exec --no-startup-id "~/app-control.sh toggle"
+bindsym F2 exec --no-startup-id "~/app-control.sh stremio"
+bindsym F3 exec --no-startup-id "~/app-control.sh nuvio"
+bindsym F4 exec --no-startup-id "~/app-control.sh jellyfin"
+bindsym F5 exec --no-startup-id "~/app-control.sh scryer"
+bindsym F6 exec --no-startup-id "~/app-control.sh hide"
 
 for_window [class="^Stremio$"] fullscreen enable
 for_window [class="^com-nuvio-app-MainKt$"] fullscreen enable
@@ -420,15 +437,13 @@ chown -R "$KIOSK_USER":"$KIOSK_USER" \
     "$KIOSK_HOME"/.xinitrc \
     "$KIOSK_HOME"/.xbindkeysrc \
     "$KIOSK_HOME"/.config \
-    "$KIOSK_HOME"/start-kiosk.sh \
-    "$KIOSK_HOME"/picker.sh \
-    "$KIOSK_HOME"/launch-jellyfin.sh
+    "$KIOSK_HOME"/app-control.sh
 
 echo
 echo "=== Gata. Repornește: sudo reboot ==="
 echo "La boot: autologin tty1 -> startx -> i3 -> Stremio direct"
-echo "Clic dreapta (oriunde) -> selector: Stremio / Nuvio / Jellyfin / Scryer / Poweroff"
-echo "Cu tastatură, dacă e conectată: r = selector, s = Stremio, n = Nuvio, j = Jellyfin"
+echo "Clic dreapta (oriunde) -> arată/ascunde selectorul: Stremio / Nuvio / Jellyfin / Scryer / Poweroff"
+echo "Cu tastatură, dacă e conectată: F1 selector, F2 Stremio, F3 Nuvio, F4 Jellyfin, F5 Scryer, F6 ascunde selector"
 echo
 echo "!!! IP folosit pentru Jellyfin/Scryer în selector: $PRIMARY_IP (alocat prin"
 echo "!!! DHCP - se poate schimba la un restart de router). Recomandare: fă o"
