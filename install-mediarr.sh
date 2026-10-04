@@ -1,8 +1,19 @@
 #!/bin/bash
 #
+# install-mediarr.sh
 # PC Intel x64 - Debian 13 (trixie)
+#
+# Un singur fișier, autonom - fără git clone, fără dependențe externe.
 # Instalează: Stremio (Docker, pornește automat la boot) + Nuvio + stack-ul
-# Rulare: sudo bash install.sh
+# *arr (Jellyfin/Sonarr/Radarr/Bazarr/Prowlarr/qBittorrent/Scryer, direct,
+# totul sub $HOME) + X/i3 minimal + selector (rofi).
+#
+# Dacă stack-ul *arr nu pornește din prima, scriptul lasă în urmă
+# ~/install.sh - un script minimal care doar reia pornirea containerelor,
+# fără să mai treci prin tot restul.
+#
+# Rulare: sudo bash install-mediarr.sh
+#
 
 set -euo pipefail
 
@@ -16,19 +27,7 @@ KIOSK_HOME="/home/$KIOSK_USER"
 STREMIO_PORT=8000
 JELLYFIN_PORT=8096
 SCRYER_PORT=8585
-YAMS_INSTALL_DIR=/opt/mediarr
-YAMS_MEDIA_DIR=/srv/media
-
-echo -e "\e[1;36m"
-echo "███╗ ███╗███████╗██████╗ ██╗ █████╗ ██████╗ ██████╗ "
-echo "████╗ ████║██╔════╝██╔══██╗██║██╔══██╗██╔══██╗██╔══██╗"
-echo "██╔████╔██║█████╗ ██║ ██║██║███████║██████╔╝██████╔╝"
-echo "██║╚██╔╝██║██╔══╝ ██║ ██║██║██╔══██║██╔══██╗██╔══██╗"
-echo "██║ ╚═╝ ██║███████╗██████╔╝██║██║ ██║██║ ██║██║ ██║"
-echo "╚═╝ ╚═╝╚══════╝╚═════╝ ╚═╝╚═╝ ╚═╝╚═╝ ╚═╝╚═╝ ╚═╝"
-echo -e "\e[1;33m mediaArr\e[0m"
-
-echo -e "\e[0;32m[INFO]\e[0m Preparing installation..."
+MEDIARR_DIR="$KIOSK_HOME/mediarr"
 
 PRIMARY_IP=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+' | head -n1)
 if [ -z "$PRIMARY_IP" ]; then
@@ -48,13 +47,11 @@ apt install -y --no-install-recommends \
     i3 \
     chromium \
     rofi \
+    xbindkeys \
     unclutter \
     dbus-x11 \
     curl \
-    wget \
-    git \
-    sed \
-    gawk
+    wget
 
 echo ">>> [3/10] Instalare Docker..."
 if ! command -v docker &> /dev/null; then
@@ -79,7 +76,7 @@ docker run -d \
     --restart unless-stopped \
     tsaridas/stremio-docker:latest
 
-echo ">>> [5/10] Instalare Nuvio (întotdeauna alpha - vezi nota din antet)..."
+echo ">>> [5/10] Instalare Nuvio (întotdeauna alpha - singura versiune publicată)..."
 echo "    (~150MB - poate dura câteva minute, în funcție de conexiune)"
 cd /tmp
 NUVIO_TAG=$(curl -s -o /dev/null -w '%{redirect_url}' "https://github.com/NuvioMedia/NuvioDesktop/releases/latest" | sed 's#.*/tag/##')
@@ -111,34 +108,168 @@ else
     rm -f "$NUVIO_DEB"
 fi
 
-echo ">>> [6/10] Stack mediArr (*arr: Sonarr/Radarr/Bazarr/Prowlarr/qBittorrent + Jellyfin)..."
+echo ">>> [6/10] Stack *arr (Jellyfin + Sonarr/Radarr/Bazarr/Prowlarr/qBittorrent/Scryer)..."
+echo "    Totul sub $MEDIARR_DIR - fără git clone, fără alt script extern."
 
-mkdir -p "$YAMS_INSTALL_DIR" "$YAMS_MEDIA_DIR"
-chown "$KIOSK_USER":"$KIOSK_USER" "$YAMS_INSTALL_DIR" "$YAMS_MEDIA_DIR"
+PUID=$(id -u "$KIOSK_USER")
+PGID=$(id -g "$KIOSK_USER")
+MEDIA_DIR="$MEDIARR_DIR/media"
+CONFIG_DIR="$MEDIARR_DIR/config"
 
-cat > /etc/sudoers.d/kiosk-yams <<EOF
-Cmnd_Alias YAMS_SETUP = /usr/bin/cp * /usr/local/bin/yams, /usr/bin/chmod +x /usr/local/bin/yams, /usr/bin/chown -R * ${YAMS_MEDIA_DIR}, /usr/bin/chown -R * ${YAMS_INSTALL_DIR}, /usr/bin/chown -R * ${YAMS_INSTALL_DIR}/config
-$KIOSK_USER ALL=(root) NOPASSWD: YAMS_SETUP
+mkdir -p "$MEDIA_DIR"/tvshows "$MEDIA_DIR"/movies "$MEDIA_DIR"/music "$MEDIA_DIR"/blackhole \
+         "$MEDIA_DIR"/downloads/torrents "$MEDIA_DIR"/downloads/usenet/complete "$MEDIA_DIR"/downloads/usenet/incomplete
+mkdir -p "$CONFIG_DIR"/jellyfin "$CONFIG_DIR"/qbittorrent "$CONFIG_DIR"/sonarr "$CONFIG_DIR"/radarr \
+         "$CONFIG_DIR"/bazarr "$CONFIG_DIR"/prowlarr "$CONFIG_DIR"/scryer
+
+cat > "$MEDIARR_DIR/.env" <<EOF
+PUID=$PUID
+PGID=$PGID
+TZ=Europe/Bucharest
+MEDIA_DIR=$MEDIA_DIR
+CONFIG_DIR=$CONFIG_DIR
 EOF
-chmod 0440 /etc/sudoers.d/kiosk-yams
-if ! visudo -c -f /etc/sudoers.d/kiosk-yams > /dev/null 2>&1; then
-    echo "!!! sudoers pentru YAMS a ieșit invalid - îl șterg. install.sh va"
-    echo "!!! cere parolă manual la pasul de CLI/permisiuni."
-    rm -f /etc/sudoers.d/kiosk-yams
-fi
 
-rm -rf /tmp/yams
-git clone --depth=1 https://github.com/userkbmsr-png/MediaRR /tmp/yams
-cd /tmp/yams
+cat > "$MEDIARR_DIR/docker-compose.yaml" <<'COMPOSE_EOF'
+services:
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin
+    container_name: jellyfin
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${MEDIA_DIR}:/data
+      - ${CONFIG_DIR}/jellyfin:/config
+    ports:
+      - 8096:8096
+    restart: unless-stopped
 
-if sudo -u "$KIOSK_USER" -H bash -c "yes '' | bash /tmp/yams/install.sh"; then
-    echo "mediArr instalat."
-    cd /
-    rm -rf /tmp/yams
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent
+    container_name: qbittorrent
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - WEBUI_PORT=8080
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${MEDIA_DIR}:/data
+      - ${CONFIG_DIR}/qbittorrent:/config
+    ports:
+      - 8080:8080
+    restart: unless-stopped
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr
+    container_name: sonarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${MEDIA_DIR}:/data
+      - ${CONFIG_DIR}/sonarr:/config
+    ports:
+      - 8989:8989
+    restart: unless-stopped
+
+  radarr:
+    image: lscr.io/linuxserver/radarr
+    container_name: radarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${MEDIA_DIR}:/data
+      - ${CONFIG_DIR}/radarr:/config
+    ports:
+      - 7878:7878
+    restart: unless-stopped
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr
+    container_name: bazarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${MEDIA_DIR}:/data
+      - ${CONFIG_DIR}/bazarr:/config
+    ports:
+      - 6767:6767
+    restart: unless-stopped
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr
+    container_name: prowlarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CONFIG_DIR}/prowlarr:/config
+    ports:
+      - 9696:9696
+    restart: unless-stopped
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    environment:
+      - LOG_LEVEL=info
+      - TZ=${TZ}
+    ports:
+      - 8191:8191
+    restart: unless-stopped
+
+  scryer:
+    image: ghcr.io/scryer-media/scryer:latest
+    container_name: scryer
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - SCRYER_BIND=0.0.0.0:8585
+      - SCRYER_SERIES_PATH=/data/tvshows
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${MEDIA_DIR}:/data
+      - ${CONFIG_DIR}/scryer:/config
+    ports:
+      - 8585:8585
+    restart: unless-stopped
+COMPOSE_EOF
+
+chown -R "$KIOSK_USER":"$KIOSK_USER" "$MEDIARR_DIR"
+
+cd "$MEDIARR_DIR"
+if docker compose up -d; then
+    echo "Stack *arr pornit cu succes."
 else
-    echo "!!! Instalarea mediArr a eșuat - restul kiosk-ului (Stremio/Nuvio) nu e"
-    echo "!!! afectat. Poți relua manual: bash install.sh"
+    echo "!!! Pornirea stack-ului *arr a eșuat la prima încercare."
+    echo "!!! Scriu un script simplu de reluare: ~$KIOSK_USER/install.sh"
+    cat > "$KIOSK_HOME/install.sh" <<RETRY_EOF
+#!/bin/bash
+set -e
+cd "$MEDIARR_DIR"
+docker compose up -d
+echo "Stack *arr (Jellyfin, Sonarr, Radarr, Bazarr, Prowlarr, qBittorrent, Scryer) pornit cu succes."
+RETRY_EOF
+    chmod +x "$KIOSK_HOME/install.sh"
+    chown "$KIOSK_USER":"$KIOSK_USER" "$KIOSK_HOME/install.sh"
+    echo "!!! Restul kiosk-ului (Stremio/Nuvio) nu e afectat - continui."
+    echo "!!! Reia mai târziu cu: bash ~/install.sh"
 fi
+cd /
 
 echo ">>> [7/10] Permisiune poweroff fără parolă pentru $KIOSK_USER..."
 cat > /etc/sudoers.d/kiosk-poweroff <<EOF
@@ -172,11 +303,20 @@ fi
 EOF
 fi
 
+cat > "$KIOSK_HOME"/.xbindkeysrc <<'EOF'
+"pkill chromium; pkill Nuvio"
+    b:3
+EOF
+
 cat > "$KIOSK_HOME"/.xinitrc <<'EOF'
 xset s off
 xset -dpms
 xset s noblank
 
+# Forțează modul video corect - la boot, TV-ul poate raporta un EDID
+# nesigur/gol, iar X alege atunci un mod cu polaritate sync greșită
+# ("Unsupported" pe TV). Aplicăm direct modul confirmat funcțional
+# (1920x1080@60, +hsync -vsync, din EDID-ul real al TV-ului).
 sleep 2
 OUT=$(xrandr | grep " connected" | cut -d" " -f1)
 xrandr --newmode "1080p60_tv" 148.50 1920 2008 2052 2200 1080 1084 1089 1125 +hsync -vsync
@@ -184,6 +324,7 @@ xrandr --addmode "$OUT" 1080p60_tv
 xrandr --output "$OUT" --mode 1080p60_tv
 
 unclutter --timeout 1 &
+xbindkeys &
 exec i3
 EOF
 
@@ -235,6 +376,22 @@ done
 EOF
 chmod +x "$KIOSK_HOME"/picker.sh
 
+cat > "$KIOSK_HOME"/launch-jellyfin.sh <<EOF
+#!/bin/bash
+pkill chromium 2>/dev/null
+pkill Nuvio 2>/dev/null
+sleep 0.5
+exec chromium \\
+    --kiosk \\
+    --noerrdialogs \\
+    --disable-infobars \\
+    --no-first-run \\
+    --disable-session-crashed-bubble \\
+    --check-for-update-interval=31536000 \\
+    "http://${PRIMARY_IP}:${JELLYFIN_PORT}"
+EOF
+chmod +x "$KIOSK_HOME"/launch-jellyfin.sh
+
 mkdir -p "$KIOSK_HOME"/.config/i3
 cat > "$KIOSK_HOME"/.config/i3/config <<'EOF'
 set $mod Mod4
@@ -244,6 +401,16 @@ exec --no-startup-id ~/start-kiosk.sh
 bindsym $mod+Shift+r exec --no-startup-id "pkill chromium; pkill Nuvio"
 bindsym $mod+Shift+e exit
 
+# taste rapide fără modificator, utile dacă e nevoie de tastatură la un
+# moment dat (uz principal rămâne clic dreapta, legat prin xbindkeys) -
+# ATENȚIE: cât timp i3 rulează, literele r/s/n/j sunt "rezervate" global și
+# nu mai ajung la Stremio/Jellyfin dacă încerci să le tastezi într-un câmp
+# de căutare din interiorul aplicațiilor
+bindsym r exec --no-startup-id "pkill chromium; pkill Nuvio"
+bindsym s exec --no-startup-id "pkill chromium; pkill Nuvio; sleep 0.5; ~/start-kiosk.sh"
+bindsym n exec --no-startup-id "pkill chromium; pkill Nuvio; sleep 0.5; /opt/nuvio/bin/Nuvio"
+bindsym j exec --no-startup-id "~/launch-jellyfin.sh"
+
 for_window [class="^Stremio$"] fullscreen enable
 for_window [class="^com-nuvio-app-MainKt$"] fullscreen enable
 EOF
@@ -251,22 +418,22 @@ EOF
 chown -R "$KIOSK_USER":"$KIOSK_USER" \
     "$PROFILE_FILE" \
     "$KIOSK_HOME"/.xinitrc \
+    "$KIOSK_HOME"/.xbindkeysrc \
     "$KIOSK_HOME"/.config \
     "$KIOSK_HOME"/start-kiosk.sh \
-    "$KIOSK_HOME"/picker.sh
+    "$KIOSK_HOME"/picker.sh \
+    "$KIOSK_HOME"/launch-jellyfin.sh
 
 echo
 echo "=== Gata. Repornește: sudo reboot ==="
 echo "La boot: autologin tty1 -> startx -> i3 -> Stremio direct"
-echo "Mod+Shift+r din Stremio -> selector: Stremio / Nuvio / Jellyfin / Scryer / Poweroff"
+echo "Clic dreapta (oriunde) -> selector: Stremio / Nuvio / Jellyfin / Scryer / Poweroff"
+echo "Cu tastatură, dacă e conectată: r = selector, s = Stremio, n = Nuvio, j = Jellyfin"
 echo
 echo "!!! IP folosit pentru Jellyfin/Scryer în selector: $PRIMARY_IP (alocat prin"
 echo "!!! DHCP - se poate schimba la un restart de router). Recomandare: fă o"
-echo "!!! rezervare DHCP pentru acest PC din panoul routerului (după adresa MAC),"
-echo "!!! nu necesită nicio modificare pe acest PC. Dacă IP-ul chiar se schimbă,"
-echo "!!! rulează din nou acest script ca să se actualizeze în selector."
-if [ -f /usr/local/bin/yams ]; then
+echo "!!! rezervare DHCP pentru acest PC din panoul routerului (după adresa MAC)."
+if [ -f "$KIOSK_HOME/install.sh" ]; then
     echo
-    echo "Servicii MediaRR (detalii complete în ~$KIOSK_USER/mediArr_services.txt):"
-    cat "$KIOSK_HOME/mediArr_services.txt" 2>/dev/null || true
+    echo "!!! Stack-ul *arr nu a pornit din prima - rulează: bash ~/install.sh"
 fi
