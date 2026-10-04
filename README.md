@@ -13,8 +13,6 @@ A one-command installer that sets up a complete, self-hosted media automation st
 * [Stremio](https://www.stremio.com/) — run directly on connected TV or Monitor, or on port 8000 (autostart on screen)
 * [Nuvio](nuvio.tv) — free, open-source media app, can be open by selector Mod+Shift+r
 
-
-
 **Media server**:
 
 * [Jellyfin](https://jellyfin.org/) — fully open source
@@ -52,6 +50,27 @@ All services share one Docker network (`yams\\\_network`) so they can talk to ea
 curl -fsSL https://raw.githubusercontent.com/userkbmsr-png/MediaRR/main/install-mediarr.sh | sudo bash
 ```
 
+## Usage
+
+# Mouse
+* Clic = play pointed item
+* Right click = show/hide rofi (window switcher) with option
+    - Stremio
+    - Nuvio
+    - Jellyfin
+    - Scryer
+    - Poweroff
+      (double click to open)
+# Keyboard
+   - F1 show rofi (window switcher)
+   - F2 Stremio
+   - F3 Nuvio
+   - F4 Jellyfin
+   - F5 Scryer
+   - F6 Poweroff
+   - Esc hide rofi (window switcher)
+   - Enter run selection and hide rofi (window switcher)
+ 
 ## Directory layout
 
 ```
