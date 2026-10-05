@@ -3,17 +3,8 @@
 # install-mediarr.sh
 # PC Intel x64 - Debian 13 (trixie)
 #
-# Un singur fișier, autonom - fără git clone, fără dependențe externe.
-# Instalează: Stremio (Docker, pornește automat la boot) + Nuvio + stack-ul
-# *arr (Jellyfin/Sonarr/Radarr/Bazarr/Prowlarr/qBittorrent/Scryer, direct,
-# totul sub $HOME) + X/i3 minimal + selector (rofi).
-#
-# Dacă stack-ul *arr nu pornește din prima, scriptul lasă în urmă
-# ~/install.sh - un script minimal care doar reia pornirea containerelor,
-# fără să mai treci prin tot restul.
-#
 # Rulare: sudo bash install-mediarr.sh
-#
+# cu F6
 
 set -euo pipefail
 
@@ -401,11 +392,12 @@ case "$1" in
         fi
         ;;
     hide)     pkill rofi 2>/dev/null ;;
+    poweroff) sudo /usr/bin/systemctl poweroff ;;
     stremio)  launch_stremio ;;
     nuvio)    launch_nuvio ;;
     jellyfin) launch_jellyfin ;;
     scryer)   launch_scryer ;;
-    *)        echo "Folosire: $0 {toggle|hide|stremio|nuvio|jellyfin|scryer}" ;;
+    *)        echo "Folosire: $0 {toggle|hide|poweroff|stremio|nuvio|jellyfin|scryer}" ;;
 esac
 BODY_EOF
 chmod +x "$KIOSK_HOME"/app-control.sh
@@ -420,13 +412,13 @@ bindsym $mod+Shift+e exit
 
 # F1 = arată/ascunde selectorul (același efect ca și clic dreapta)
 # F2-F5 = lansează direct aplicația respectivă
-# F6 = ascunde doar selectorul, pentru orice eventualitate
+# F6 = poweroff
 bindsym F1 exec --no-startup-id "~/app-control.sh toggle"
 bindsym F2 exec --no-startup-id "~/app-control.sh stremio"
 bindsym F3 exec --no-startup-id "~/app-control.sh nuvio"
 bindsym F4 exec --no-startup-id "~/app-control.sh jellyfin"
 bindsym F5 exec --no-startup-id "~/app-control.sh scryer"
-bindsym F6 exec --no-startup-id "~/app-control.sh hide"
+bindsym F6 exec --no-startup-id "~/app-control.sh poweroff"
 
 for_window [class="^Stremio$"] fullscreen enable
 for_window [class="^com-nuvio-app-MainKt$"] fullscreen enable
@@ -443,7 +435,7 @@ echo
 echo "=== Gata. Repornește: sudo reboot ==="
 echo "La boot: autologin tty1 -> startx -> i3 -> Stremio direct"
 echo "Clic dreapta (oriunde) -> arată/ascunde selectorul: Stremio / Nuvio / Jellyfin / Scryer / Poweroff"
-echo "Cu tastatură, dacă e conectată: F1 selector, F2 Stremio, F3 Nuvio, F4 Jellyfin, F5 Scryer, F6 ascunde selector"
+echo "Cu tastatură, dacă e conectată: F1 selector, F2 Stremio, F3 Nuvio, F4 Jellyfin, F5 Scryer, F6 poweroff"
 echo
 echo "!!! IP folosit pentru Jellyfin/Scryer în selector: $PRIMARY_IP (alocat prin"
 echo "!!! DHCP - se poate schimba la un restart de router). Recomandare: fă o"
