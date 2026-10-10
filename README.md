@@ -47,7 +47,11 @@ All services share one Docker network (`yams\\\_network`) so they can talk to ea
 ## Installation
 
 ```
-curl -fsSL https://raw.githubusercontent.com/userkbmsr-png/MediaRR/main/install-mediarr.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/userkbmsr-png/MediaRR/main/install-mediarr-v2.sh | sudo bash
+```
+set a IR Remote
+```
+curl -fsSL https://raw.githubusercontent.com/userkbmsr-png/MediaRR/main/remote-setup.sh | sudo bash
 ```
 
 ## Usage
